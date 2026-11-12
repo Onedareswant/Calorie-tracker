@@ -231,6 +231,7 @@ svg.chart{width:100%;height:auto;display:block}
 .wstats b{font-size:21px;font-weight:500}.wstats small{display:block;color:var(--muted);font-size:13px}
 .coach p{margin:4px 0 0;color:var(--muted);line-height:1.5}
 .coach b{font-size:18px}
+.bm{display:inline-block;margin-top:8px;background:var(--blueSoft);color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:2px 8px;font-size:13px;font-weight:700}
 </style>
 </head>
 <body>
@@ -308,7 +309,7 @@ const md=k=>{const d=parseK(k);return `${d.getMonth()+1}/${d.getDate()}`};
 /* ================= state ================= */
 function defaults(){return{
   settings:{calGoal:0,carbPct:0,fatPct:0,proPct:0,netCarbs:true,waterGoal:0,
-    fiberGoal:0,sugarGoal:0,sodiumGoal:0,satGoal:0,cholGoal:0,aiKey:'',aiModel:'claude-sonnet-5-5',
+    fiberGoal:0,sugarGoal:0,sodiumGoal:0,satGoal:0,cholGoal:0,aiKey:'',aiModel:'claude-sonnet-5-5',nixId:'',nixKey:'',
     startWeight:null,goalWeight:null,sheetUrl:'',autoSync:true,usdaKey:'DEMO_KEY',theme:'dark',lastSync:null},
   diary:{},foods:[],recipes:[],meals:[],recent:[],weights:[]}}
 function normalize(o){const d=defaults();o=o&&typeof o==='object'?o:{};
@@ -337,7 +338,7 @@ function dayN(k){const t=zero();const d=day(k);MEALS.forEach(m=>d[m].forEach(e=>
 function exCal(k){return day(k).exercise.reduce((a,x)=>a+(+x.cal||0),0)}
 function logged(k){const d=S.diary[k];return !!d&&MEALS.some(m=>(d[m]||[]).length)}
 function goals(){const s=S.settings;return{cal:+s.calGoal||0,carb:s.calGoal*s.carbPct/400,fat:s.calGoal*s.fatPct/900,pro:s.calGoal*s.proPct/400}}
-function amountText(qty,u){if(['g','oz','ml'].includes(u.label))return `${num(qty)} ${u.label}`;return +qty===1?u.label:`${num(qty)} × ${u.label}`}
+function amountText(qty,u){if(['g','oz','ml'].includes(u.label))return `${num(qty)} ${u.label}`;return +qty===1?(/^\d/.test(u.label)?u.label:`1 ${u.label}`):`${num(qty)} × ${u.label}`}
 function amountLabel(e){return amountText(e.qty,unitOf(e.food,e.unit))}
 function streak(){let k=today();if(!logged(k))k=addD(k,-1);let n=0;while(logged(k)&&n<3650){n++;k=addD(k,-1)}return n}
 function guessMeal(){const h=new Date().getHours()+new Date().getMinutes()/60;return h<10.5?'breakfast':h<15?'lunch':h<20.5?'dinner':'snacks'}
@@ -380,7 +381,7 @@ function factsHTML(n){return `<div class="facts">
  <div class="sub"><span>Net Carbs</span><span>${num(Math.max(0,n.carb-n.fiber))} g</span></div>
  <div><span>Protein</span><span>${num(n.pro)} g</span></div></div>`}
 function foodRow(item){const id=reg(item);const n=nOf(item);const u=unitOf(item.food,item.unit);
-  return `<div class="frow" onclick="openFood('${id}')"><div class="fi"><div class="fn">${esc(item.food.name)}${item.food.verified?BADGE:''}</div><div class="fs">${fmt(n.cal)} cal, ${esc(amountText(item.qty,u))}${item.food.brand?', '+esc(item.food.brand):''}${item.tag?` <span class="src">· ${esc(item.tag)}</span>`:''}</div></div>${item.edit?`<button class="xbtn" onclick="event.stopPropagation();${item.edit}" aria-label="Edit">${IC.edit}</button>`:''}<button class="plus" onclick="event.stopPropagation();quickLog('${id}')" aria-label="Add">${IC.plus}</button></div>`}
+  return `<div class="frow" onclick="openFood('${id}')"><div class="fi"><div class="fn">${esc(item.food.name)}${item.food.verified?BADGE:''}</div><div class="fs">${fmt(n.cal)} cal, ${esc(amountText(item.qty,u))}${item.food.brand?', '+esc(item.food.brand):''}${item.tag?` <span class="src">· ${esc(item.tag)}</span>`:''}</div>${item.best?'<div><span class="bm">Best Match</span></div>':''}</div>${item.edit?`<button class="xbtn" onclick="event.stopPropagation();${item.edit}" aria-label="Edit">${IC.edit}</button>`:''}<button class="plus" onclick="event.stopPropagation();quickLog('${id}')" aria-label="Add">${IC.plus}</button></div>`}
 function defItem(f,tag){return{food:f,unit:0,qty:unitOf(f,0).label==='g'?100:1,tag}}
 
 /* ================= TODAY ================= */
@@ -450,20 +451,31 @@ function openLog(m){LG={meal:m||guessMeal(),q:'',tab:LG.tab==='meals'?'history':
 function addIngredient(){LG={meal:guessMeal(),q:'',tab:'history',pick:'recipe',res:null};go('log')}
 V.log=()=>`<div class="topbar"><button class="circ" onclick="back()">${IC.back}</button>
  ${LG.pick?`<div class="ttl">Add ingredient</div>`:`<select class="mealsel" onchange="LG.meal=this.value" aria-label="Meal">${MEALS.map(m=>`<option value="${m}" ${m===LG.meal?'selected':''}>${ML[m]} ▾</option>`).join('')}</select>`}<span style="width:46px"></span></div>
- <form class="search" onsubmit="event.preventDefault();doSearch()">${IC.search}<input id="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="Search foods, brands, flavors…" value="${esc(LG.q)}" oninput="LG.q=this.value;paintLog()"></form>
+ <form class="search" onsubmit="event.preventDefault();doSearch()">${IC.search}<input id="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="Search foods, brands, flavors…" value="${esc(LG.q)}" oninput="LG.q=this.value;paintLog();autoSearch()"></form>
  <div id="logbody">${logBody()}</div>
  ${LG.pick?'':`<div class="qpill"><button onclick="waterSheet()">${IC.water}Water</button><button onclick="weightSheet()">${IC.scale}Weight</button><button onclick="exerciseSheet()">${IC.fire}Exercise</button></div>`}`;
 function paintLog(){const el=$('#logbody');if(el)el.innerHTML=logBody()}
 function logBody(){const q=LG.q.trim().toLowerCase();
- if(q){const loc=[],seen=new Set();const hit=s=>(s||'').toLowerCase().includes(q);
-  S.recent.forEach(r=>{if((hit(r.food.name)||hit(r.food.brand))&&!seen.has(r.food.id)){seen.add(r.food.id);loc.push({food:r.food,unit:r.unit,qty:r.qty,tag:'History'})}});
-  S.foods.forEach(f=>{if((hit(f.name)||hit(f.brand))&&!seen.has(f.id)){seen.add(f.id);loc.push({food:f,unit:0,qty:1,tag:'My food'})}});
+ if(q){const loc=[],seen=new Set();const words=q.split(/\s+/).filter(Boolean);const hit=s=>{s=(s||'').toLowerCase();return words.every(w=>s.includes(w))};
+  S.recent.forEach(r=>{if(hit(r.food.name+' '+(r.food.brand||''))&&!seen.has(r.food.id)){seen.add(r.food.id);loc.push({food:r.food,unit:r.unit,qty:r.qty,tag:'History'})}});
+  S.foods.forEach(f=>{if(hit(f.name+' '+(f.brand||''))&&!seen.has(f.id)){seen.add(f.id);loc.push({food:f,unit:0,qty:1,tag:'My food'})}});
   S.recipes.forEach(r=>{const f=recipeFood(r);if(hit(r.name)&&!seen.has(f.id)){seen.add(f.id);loc.push({food:f,unit:0,qty:1,tag:'Recipe'})}});
-  let h=loc.length?`<h4 class="lh">Your foods</h4>`+loc.slice(0,15).map(foodRow).join(''):'';
   const R=LG.res&&LG.res.q.toLowerCase()===q?LG.res:null;
-  if(!R)h+=`<button class="btn wide" style="margin-top:14px" onclick="doSearch()">Search all foods for “${esc(LG.q.trim())}”</button>`;
-  else h+=resSection('Common foods (USDA)',R.usda,'usda')+resSection('Brands & packaged foods',R.off,'off');
-  return h}
+  if(!R)return `<button class="btn wide" style="margin-top:6px" onclick="doSearch()">Search all foods for “${esc(LG.q.trim())}”</button>`+(loc.length?`<h4 class="lh">Your foods</h4>`+loc.slice(0,15).map(foodRow).join(''):'')+createOwn();
+  const rem=[],dup=new Set(loc.map(x=>(x.food.name+'|'+(x.food.brand||'')).toLowerCase()));
+  ['nix','usda','off'].forEach(k=>{if(Array.isArray(R[k]))R[k].forEach(f=>{const key=(f.name+'|'+(f.brand||'')+'|'+Math.round(f.n.cal*(f.units[0].mult||1))).toLowerCase();if(dup.has(key)||(LG.ver&&!f.verified))return;dup.add(key);rem.push(f)})});
+  rem.sort((a,b)=>scoreF(b,q)-scoreF(a,q));
+  const items=[...loc.slice(0,15),...rem.slice(0,40).map(f=>defItem(f))];if(items.length)items[0].best=true;
+  const busy=R.usda==='loading'||R.off==='loading'||R.nix==='loading';
+  let h=`<div class="ovhead" style="margin:4px 2px 12px"><h3 style="margin:0">Search Results</h3><button class="chip ${LG.ver?'on':''}" onclick="LG.ver=!LG.ver;paintLog()">✓ Verified only</button></div>`+items.map(foodRow).join('');
+  if(busy)h+=`<div class="loading">Searching…</div>`;
+  else if(!items.length)h+=`<div class="muted pad">${R.usda==='err'&&R.off==='err'?'Couldn’t reach the food databases. Check your connection and search again.':'No matches. Try a shorter search.'}</div>`;
+  if(R.nix==='err')h+=`<p class="note">Restaurant search didn’t load. Check your Nutritionix App ID and key in Settings. It may also be blocked from this page, in which case the other databases still work.</p>`;
+  return h+createOwn()}
+ return logBodyRest()}
+function scoreF(f,q){const w=q.toLowerCase().split(/\s+/).filter(Boolean),s=((f.name||'')+' '+(f.brand||'')).toLowerCase();let sc=w.filter(x=>s.includes(x)).length*2;if(f.units[0]&&f.units[0].label!=='g')sc+=1;if(f.verified)sc+=.5;if(f.src==='nix')sc+=1.5;return sc}
+function createOwn(){return `<p class="note" style="margin-top:18px">Not the right calories? Create your own with the exact numbers.</p><button class="ghost wide" onclick="go('createFood',{name:LG.q.trim()})">Create “${esc(LG.q.trim())}” with my own calories</button>`}
+function logBodyRest(){
  const tabs=[['history','History'],['meals','My Meals'],['recipes','My Recipes'],['foods','My Foods']].filter(t=>!(LG.pick&&t[0]==='meals'));
  let h=`<div class="tabs">${tabs.map(([k,l])=>`<button class="${LG.tab===k?'on':''}" onclick="LG.tab='${k}';paintLog()">${l}</button>`).join('')}</div>`;
  if(LG.tab==='history'){
@@ -484,16 +496,18 @@ function resSection(title,v){let h=`<h4 class="lh">${title}</h4>`;
  if(v==='err')return h+`<div class="muted pad">Couldn’t reach this database. Check your connection and search again.</div>`;
  if(!v||!v.length)return h+`<div class="muted pad">No matches. Try a shorter search.</div>`;
  return h+v.map(f=>foodRow(defItem(f))).join('')}
-function doSearch(){const q=LG.q.trim();if(!q)return;LG.res={q,usda:'loading',off:'loading'};paintLog();
+let ast;function autoSearch(){clearTimeout(ast);if(S.settings.usdaKey&&S.settings.usdaKey!=='DEMO_KEY'&&LG.q.trim().length>=3)ast=setTimeout(doSearch,700)}
+function doSearch(){const q=LG.q.trim();if(!q)return;const useNix=!!(S.settings.nixId&&S.settings.nixKey);LG.res={q,usda:'loading',off:'loading',nix:useNix?'loading':null};paintLog();
  const done=(k,v)=>{if(LG.res&&LG.res.q===q){LG.res[k]=v;paintLog()}};
  searchUSDA(q).then(r=>done('usda',r)).catch(()=>done('usda','err'));
- searchOFF(q).then(r=>done('off',r)).catch(()=>done('off','err'))}
-function openFood(id){const it=REG[id];if(!it)return;
- if(LG.pick==='recipe'&&stack[stack.length-1].v==='log'){FD={food:clone(it.food),unit:it.unit||0,qty:it.qty||1,meal:LG.meal,days:new Set([cur]),mode:'recipe',facts:false};return go('food')}
- FD={food:clone(it.food),unit:it.unit||0,qty:it.qty||1,meal:LG.meal,days:new Set([cur]),mode:'log',facts:false};go('food')}
-function quickLog(id){const it=REG[id];if(!it)return;
- if(LG.pick==='recipe'){RD.items.push({id:uid(),food:clone(it.food),unit:it.unit||0,qty:+it.qty||1});toast('Ingredient added');return popTo('recipe')}
- logEntry(LG.meal,[cur],it.food,it.unit||0,it.qty||1);toast(`Added to ${ML[LG.meal]}`)}
+ searchOFF(q).then(r=>done('off',r)).catch(()=>done('off','err'));
+ if(useNix)searchNIX(q).then(r=>done('nix',r)).catch(()=>done('nix','err'))}
+async function openFood(id){const it=REG[id];if(!it)return;const f=await nixReady(it.food);if(!f)return;
+ if(LG.pick==='recipe'&&stack[stack.length-1].v==='log'){FD={food:clone(f),unit:it.unit||0,qty:it.qty||1,meal:LG.meal,days:new Set([cur]),mode:'recipe',facts:false};return go('food')}
+ FD={food:clone(f),unit:it.unit||0,qty:it.qty||1,meal:LG.meal,days:new Set([cur]),mode:'log',facts:false};go('food')}
+async function quickLog(id){const it=REG[id];if(!it)return;const f=await nixReady(it.food);if(!f)return;
+ if(LG.pick==='recipe'){RD.items.push({id:uid(),food:clone(f),unit:it.unit||0,qty:+it.qty||1});toast('Ingredient added');return popTo('recipe')}
+ logEntry(LG.meal,[cur],f,it.unit||0,it.qty||1);toast(`Added to ${ML[LG.meal]}`)}
 function logEntry(meal,days,food,unit,qty){days.forEach(k=>day(k,true)[meal].push({id:uid(),food:clone(food),unit:+unit||0,qty:+qty||0}));pushRecent(food,unit,qty);save()}
 function pushRecent(food,unit,qty){if(food.src==='quick')return;S.recent=[{food:clone(food),unit:+unit||0,qty:+qty||1},...S.recent.filter(r=>r.food.id!==food.id)].slice(0,80)}
 
@@ -516,8 +530,18 @@ function fromUSDA(f){const get=nums=>{for(const x of f.foodNutrients||[]){if(num
  let kcal=get(['208']);if(!kcal)kcal=get(['958','957']);if(!kcal){const kj=get(['268']);kcal=kj/4.184}
  const per={cal:kcal/100,carb:get(['205'])/100,fiber:get(['291'])/100,sugar:get(['269'])/100,fat:get(['204'])/100,sat:get(['606'])/100,pro:get(['203'])/100,sodium:get(['307'])/100,chol:get(['601'])/100};
  const units=[{label:'g',mult:1},{label:'oz',mult:28.35}];
- if(f.servingSize>0&&/^(g|grm|ml|mlt)$/i.test(f.servingSizeUnit||''))units.unshift({label:`serving (${f.householdServingFullText?f.householdServingFullText+', ':''}${num(f.servingSize)} ${/ml|mlt/i.test(f.servingSizeUnit)?'ml':'g'})`,mult:+f.servingSize});
+ if(f.servingSize>0&&/^(g|grm|ml|mlt)$/i.test(f.servingSizeUnit||'')){const su=/ml|mlt/i.test(f.servingSizeUnit)?'ml':'g',hh=String(f.householdServingFullText||'').trim().toLowerCase();units.unshift({label:hh?`${hh} (${num(f.servingSize)} ${su})`:`serving (${num(f.servingSize)} ${su})`,mult:+f.servingSize})}
  return{id:'usda_'+f.fdcId,name:titleCase(f.description),brand:titleCase(f.brandName||f.brandOwner||''),n:per,units,src:'usda',code:f.gtinUpc||'',verified:true}}
+
+/* ================= Nutritionix (restaurant foods, optional) ================= */
+function nixHeaders(){return{'x-app-id':S.settings.nixId,'x-app-key':S.settings.nixKey}}
+async function searchNIX(q){const r=await fetch(`https://trackapi.nutritionix.com/v2/search/instant?query=${encodeURIComponent(q)}&branded=true&common=false`,{headers:nixHeaders()});if(!r.ok)throw 0;const j=await r.json();
+ return (j.branded||[]).filter(x=>x.nf_calories>0).slice(0,25).map(x=>fromNIX(x,false))}
+function fromNIX(it,full){const g=x=>Math.max(0,parseFloat(x)||0);const n={cal:g(it.nf_calories),carb:g(it.nf_total_carbohydrate),fiber:g(it.nf_dietary_fiber),sugar:g(it.nf_sugars),fat:g(it.nf_total_fat),sat:g(it.nf_saturated_fat),pro:g(it.nf_protein),sodium:g(it.nf_sodium),chol:g(it.nf_cholesterol)};
+ const qty=g(it.serving_qty)||1,unit=String(it.serving_unit||'serving').trim();const units=[{label:`${num(qty)} ${unit}`,mult:1}];const gr=g(it.serving_weight_grams);if(gr>0)units.push({label:'g',mult:1/gr});
+ return{id:'nix_'+it.nix_item_id,name:String(it.food_name||'Food').replace(/\b\w/g,c=>c.toUpperCase()),brand:String(it.brand_name||''),n,units,src:'nix',verified:true,nixId:it.nix_item_id,hydrated:!!full}}
+async function hydrateNix(f){const r=await fetch(`https://trackapi.nutritionix.com/v2/search/item?nix_item_id=${encodeURIComponent(f.nixId)}`,{headers:nixHeaders()});if(!r.ok)throw 0;const j=await r.json();const it=(j.foods||[])[0];if(!it)throw 0;return fromNIX(it,true)}
+async function nixReady(f){if(!f.nixId||f.hydrated)return f;toast('Getting nutrition…');try{return await hydrateNix(f)}catch(e){toast('Couldn’t load that item. Try again.');return null}}
 
 /* ================= barcode & voice ================= */
 let scanner=null;
@@ -554,6 +578,7 @@ V.food=()=>{const f=FD.food;const btn=FD.mode==='edit'?'Save':FD.mode==='recipe'
  </div>
  ${FD.mode==='log'?`<div class="sec"><h4>Add to Multiple Days</h4><div class="days">${dayChips}</div></div>`:''}
  <div id="fdsum">${fdSummary()}</div>
+ <button class="ghost wide" onclick="go('createFood',{from:1})">Edit calories &amp; nutrition</button>
  ${FD.mode==='edit'?`<button class="danger wide" onclick="fdDelete()">Delete from diary</button>`:''}
  ${(f.src==='off'||f.src==='usda')&&!S.foods.some(x=>x.id===f.id)?`<button class="ghost wide" onclick="saveToMyFoods()">Save to My Foods</button>`:''}`};
 function fdSummary(){const n=nOf(FD);
@@ -565,7 +590,7 @@ function toggleDay(k,el){if(FD.days.has(k)){if(FD.days.size>1)FD.days.delete(k)}
 function fdSubmit(){if(!(FD.qty>0))return toast('Enter how many servings');
  if(FD.mode==='recipe'){RD.items.push({id:uid(),food:clone(FD.food),unit:FD.unit,qty:FD.qty});toast('Ingredient added');return popTo('recipe')}
  if(FD.mode==='edit'){const {k,m,id}=FD.ref;const list=day(k,true)[m];const i=list.findIndex(x=>x.id===id);if(i<0)return back();
-  const e=list[i];e.unit=FD.unit;e.qty=FD.qty;if(FD.meal!==m){list.splice(i,1);day(k,true)[FD.meal].push(e)}save();toast('Saved');return back()}
+  const e=list[i];e.food=clone(FD.food);e.unit=FD.unit;e.qty=FD.qty;if(FD.meal!==m){list.splice(i,1);day(k,true)[FD.meal].push(e)}save();toast('Saved');return back()}
  const days=[...FD.days];logEntry(FD.meal,days,FD.food,FD.unit,FD.qty);toast(`Logged to ${ML[FD.meal]}${days.length>1?` on ${days.length} days`:''}`);popOut(['food','log','createFood'])}
 function fdDelete(){const {k,m,id}=FD.ref;if(!confirm('Delete this food from your diary?'))return;day(k,true)[m]=day(k)[m].filter(x=>x.id!==id);save();toast('Deleted');back()}
 function saveToMyFoods(){const f=clone(FD.food);f.src='mine';S.foods=[f,...S.foods.filter(x=>x.id!==f.id)];save();toast('Saved to My Foods');FD.food.src='mine';render()}
@@ -587,8 +612,11 @@ function savedMealSheet(id){const ml=S.meals.find(x=>x.id===id);if(!ml)return;co
 
 /* ================= create food ================= */
 let CF={};
-V.createFood=p=>{const f=p.id?S.foods.find(x=>x.id===p.id):null;CF={id:f?f.id:null};const n=f?f.n:{};const v=k=>f?r1(n[k]||0):'';
- return `<div class="topbar"><button class="circ" onclick="back()">${IC.back}</button><div class="ttl">${f?'Edit food':'Create food'}</div><button class="txtbtn" onclick="saveFood()">Save</button></div>
+V.createFood=p=>{const ex=p.id?S.foods.find(x=>x.id===p.id):null;let f=ex;
+ if(!f&&p.from){const tn=nOf(FD),al=amountLabel(FD);f={name:FD.food.name,brand:FD.food.brand==='Meal scan'?'':(FD.food.brand||''),servingLabel:al,units:[{label:al}],n:tn,grams:null,code:''}}
+ else if(!f&&p.name){f={name:p.name,brand:'',servingLabel:'',units:[{label:''}],n:{},grams:null,code:''}}
+ CF={id:ex?ex.id:null,from:!!p.from};const n=f?f.n:{};const v=k=>f&&n[k]!=null?r1(n[k]):'';
+ return `<div class="topbar"><button class="circ" onclick="back()">${IC.back}</button><div class="ttl">${ex?'Edit food':p.from?'Edit nutrition':'Create food'}</div><button class="txtbtn" onclick="saveFood()">Save</button></div>
  <label class="fld">Food name<input id="cf_name" value="${esc(f?f.name:'')}" placeholder="e.g. Western Fries"></label>
  <label class="fld">Brand or restaurant (optional)<input id="cf_brand" value="${esc(f?f.brand:'')}" placeholder="e.g. Royal Farms"></label>
  <div class="grid2"><label class="fld">Serving size<input id="cf_sl" value="${esc(f?(f.servingLabel||f.units[0].label):'')}" placeholder="e.g. 1 cup, 7 fries"></label>
@@ -606,13 +634,15 @@ V.createFood=p=>{const f=p.id?S.foods.find(x=>x.id===p.id):null;CF={id:f?f.id:nu
  <label class="fld">Cholesterol (mg)<input id="cf_chol" type="number" inputmode="decimal" value="${v('chol')}"></label>
  <label class="fld">Barcode (optional)<input id="cf_code" inputmode="numeric" value="${esc(f?f.code||'':p.code||'')}"></label></div>
  <button class="btn wide" onclick="saveFood()">Save food</button>
- ${f?`<button class="danger wide" onclick="deleteFood('${f.id}')">Delete food</button>`:''}`};
+ ${ex?`<button class="danger wide" onclick="deleteFood('${ex.id}')">Delete food</button>`:''}`};
 function saveFood(){const g=id=>parseFloat($('#'+id).value)||0;const name=$('#cf_name').value.trim();if(!name)return toast('Add a food name');
  const sl=$('#cf_sl').value.trim()||'1 serving';const gr=g('cf_g');
  const n={cal:g('cf_cal'),carb:g('cf_carb'),fiber:g('cf_fiber'),sugar:g('cf_sugar'),fat:g('cf_fat'),sat:g('cf_sat'),pro:g('cf_pro'),sodium:g('cf_sod'),chol:g('cf_chol')};
  const units=[{label:sl,mult:1}];if(gr>0)units.push({label:'g',mult:1/gr});
  const f={id:CF.id||'my_'+uid(),name,brand:$('#cf_brand').value.trim(),n,units,src:'mine',code:$('#cf_code').value.replace(/\D/g,''),grams:gr||null,servingLabel:sl};
- S.foods=[f,...S.foods.filter(x=>x.id!==f.id)];save();toast(CF.id?'Food updated':'Food saved to My Foods');back();if(stack[stack.length-1].v==='log'){LG.tab='foods';render()}}
+ S.foods=[f,...S.foods.filter(x=>x.id!==f.id)];save();toast(CF.id?'Food updated':'Food saved to My Foods');
+ if(CF.from&&FD){FD.food=clone(f);FD.unit=0;FD.qty=1}
+ back();if(!CF.from&&stack[stack.length-1].v==='log'){LG.tab='foods';render()}}
 function deleteFood(id){if(!confirm('Delete this food from My Foods? Past diary entries stay.'))return;S.foods=S.foods.filter(x=>x.id!==id);save();back()}
 
 /* ================= recipes ================= */
@@ -846,7 +876,7 @@ const DIARY_H=['Date','Meal','Food','Brand','Amount','Calories','Net Carbs (g)',
 const DAILY_H=['Date','Food Calories','Exercise Calories','Net Calories','Calorie Goal','Net Carbs (g)','Fat (g)','Protein (g)','Fiber (g)','Sugar (g)','Sodium (mg)','Water (oz)'];
 function diaryRows(){const rows=[];Object.keys(S.diary).sort().forEach(k=>MEALS.forEach(m=>(S.diary[k][m]||[]).forEach(e=>{const n=nOf(e);rows.push([k,ML[m],e.food.name,e.food.brand||'',amountLabel(e),Math.round(n.cal),r1(Math.max(0,n.carb-n.fiber)),r1(n.carb),r1(n.fiber),r1(n.sugar),r1(n.fat),r1(n.sat),r1(n.pro),Math.round(n.sodium),Math.round(n.chol)])})));return rows}
 function dailyRows(){return Object.keys(S.diary).sort().filter(k=>logged(k)||day(k).water||day(k).exercise.length).map(k=>{const n=dayN(k),ex=exCal(k);return [k,Math.round(n.cal),Math.round(ex),Math.round(n.cal-ex),S.settings.calGoal,r1(Math.max(0,n.carb-n.fiber)),r1(n.fat),r1(n.pro),r1(n.fiber),r1(n.sugar),Math.round(n.sodium),day(k).water||0]})}
-function payload(){const st=clone(S);st.settings.sheetUrl='';st.settings.aiKey='';return{diaryHeaders:DIARY_H,diary:diaryRows(),dailyHeaders:DAILY_H,daily:dailyRows(),weights:S.weights.map(w=>[w.date,w.lbs]),exercise:Object.keys(S.diary).sort().flatMap(k=>(S.diary[k].exercise||[]).map(x=>[k,x.name,x.min||'',x.cal])),state:st}}
+function payload(){const st=clone(S);st.settings.sheetUrl='';st.settings.aiKey='';st.settings.nixId='';st.settings.nixKey='';return{diaryHeaders:DIARY_H,diary:diaryRows(),dailyHeaders:DAILY_H,daily:dailyRows(),weights:S.weights.map(w=>[w.date,w.lbs]),exercise:Object.keys(S.diary).sort().flatMap(k=>(S.diary[k].exercise||[]).map(x=>[k,x.name,x.min||'',x.cal])),state:st}}
 let syncT;
 function scheduleSync(){if(!S.settings.sheetUrl||!S.settings.autoSync)return;clearTimeout(syncT);syncT=setTimeout(()=>syncNow(false),2500)}
 async function syncNow(manual){const url=S.settings.sheetUrl;if(!url){if(manual)toast('Paste your Google Sheet web app link first');return}
@@ -854,13 +884,13 @@ async function syncNow(manual){const url=S.settings.sheetUrl;if(!url){if(manual)
  catch(e){if(manual)toast('Sync failed — check the link and your connection')}}
 async function restoreSheet(){const url=S.settings.sheetUrl;if(!url)return toast('Paste your Google Sheet web app link first');
  try{toast('Loading from Google Sheet…');const r=await fetch(url);const j=await r.json();if(!j||!j.diary)return toast('No backup found in that sheet yet');
-  if(!confirm('Replace the data on this device with the copy from your Google Sheet?'))return;const keep=url,key=S.settings.aiKey;S=normalize(j);S.settings.sheetUrl=keep;S.settings.aiKey=key;persist();applyTheme();setTab('today');toast('Restored from Google Sheet')}
+  if(!confirm('Replace the data on this device with the copy from your Google Sheet?'))return;const keep=url,key=S.settings.aiKey,ni=S.settings.nixId,nk=S.settings.nixKey;S=normalize(j);S.settings.sheetUrl=keep;S.settings.aiKey=key;S.settings.nixId=ni;S.settings.nixKey=nk;persist();applyTheme();setTab('today');toast('Restored from Google Sheet')}
  catch(e){toast('Couldn’t load from the sheet — check the link')}}
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function exportCSV(){download(`food-diary-${today()}.csv`,[DIARY_H,...diaryRows()].map(r=>r.map(csvCell).join(',')).join('\n'),'text/csv');toast('Diary exported')}
-function exportBackup(){const st=clone(S);st.settings.aiKey='';download(`calorie-tracker-backup-${today()}.json`,JSON.stringify(st),'application/json')}
-function importBackup(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(!j.diary)throw 0;if(!confirm('Replace the data on this device with this backup?'))return;const keep=S.settings.sheetUrl,key=S.settings.aiKey;S=normalize(j);if(!S.settings.sheetUrl)S.settings.sheetUrl=keep;S.settings.aiKey=key;save();applyTheme();setTab('today');toast('Backup restored')}catch(e){toast('That file isn’t a tracker backup')}};r.readAsText(f)}
+function exportBackup(){const st=clone(S);st.settings.aiKey='';st.settings.nixId='';st.settings.nixKey='';download(`calorie-tracker-backup-${today()}.json`,JSON.stringify(st),'application/json')}
+function importBackup(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(!j.diary)throw 0;if(!confirm('Replace the data on this device with this backup?'))return;const keep=S.settings.sheetUrl,key=S.settings.aiKey,ni=S.settings.nixId,nk=S.settings.nixKey;S=normalize(j);if(!S.settings.sheetUrl)S.settings.sheetUrl=keep;S.settings.aiKey=key;S.settings.nixId=ni;S.settings.nixKey=nk;save();applyTheme();setTab('today');toast('Backup restored')}catch(e){toast('That file isn’t a tracker backup')}};r.readAsText(f)}
 function copyScript(){const t=$('#scriptbox');t.select();try{navigator.clipboard.writeText(APPS_SCRIPT).then(()=>toast('Script copied'),()=>{document.execCommand('copy');toast('Script copied')})}catch(e){document.execCommand('copy');toast('Script copied')}}
 function applyTheme(){document.documentElement.dataset.theme=S.settings.theme||'dark'}
 V.settings=()=>{const s=S.settings;
@@ -878,14 +908,17 @@ V.settings=()=>{const s=S.settings;
  <div class="card"><h3>Meal scan</h3><p class="note">Meal scan sends your photo to Claude to estimate what’s on the plate. Create a key at platform.claude.com under Settings → API keys and paste it here. The key stays on this phone and each scan is billed to your API account.</p>
   <label class="fld">Claude API key<input type="password" autocomplete="off" value="${esc(s.aiKey)}" placeholder="sk-ant-…" onchange="S.settings.aiKey=this.value.trim();save();toast('Key saved')"></label>
   <label class="fld">Model<select onchange="S.settings.aiModel=this.value;save()"><option value="claude-sonnet-5-5" ${s.aiModel!=='claude-haiku-5-5'?'selected':''}>Sonnet 5.5 (more accurate)</option><option value="claude-haiku-5-5" ${s.aiModel==='claude-haiku-5-5'?'selected':''}>Haiku 5.5 (faster, cheaper)</option></select></label></div>
- <div class="card"><h3>Food search</h3><p class="note">Common foods come from the USDA database; packaged foods and barcodes come from Open Food Facts. The shared USDA key allows about 30 searches an hour. A free personal key from api.data.gov raises that to 1,000.</p>
+ <div class="card"><h3>Restaurant search (optional)</h3><p class="note">Adds restaurant and brand menu items (McDonald’s, Chick-fil-A and more) to your search results, with servings like “20 nuggets.” Sign up free at developer.nutritionix.com, create an app, and paste its App ID and App Key here. The free plan has a low daily limit, so each opened item counts as a request. The keys stay on this phone.</p>
+  <label class="fld">Nutritionix App ID<input value="${esc(s.nixId)}" autocomplete="off" onchange="S.settings.nixId=this.value.trim();save();toast('Saved')"></label>
+  <label class="fld">Nutritionix App Key<input type="password" autocomplete="off" value="${esc(s.nixKey)}" onchange="S.settings.nixKey=this.value.trim();save();toast('Saved')"></label></div>
+ <div class="card"><h3>Food search</h3><p class="note">Common foods come from the USDA database; packaged foods and barcodes come from Open Food Facts. The shared USDA key allows about 30 searches an hour. A free personal key from api.data.gov raises that to 1,000, and also turns on search-as-you-type.</p>
   <label class="fld">USDA API key<input value="${esc(s.usdaKey)}" onchange="S.settings.usdaKey=this.value.trim()||'DEMO_KEY';save();toast('Key saved')"></label></div>
  <div class="card"><h3>Appearance</h3><div class="btnrow">${[['dark','Dark'],['light','Light'],['auto','Match phone']].map(([k,l])=>`<button class="chip ${s.theme===k?'on':''}" onclick="S.settings.theme='${k}';save();applyTheme();render()">${l}</button>`).join('')}</div></div>
  <div class="card"><h3>Your data</h3><p class="note">Data is saved on this phone. Export a backup now and then, or turn on Google Sheet sync.</p>
   <button class="ghost wide" onclick="exportCSV()">Export diary (CSV)</button>
   <button class="ghost wide" onclick="exportBackup()">Download full backup</button>
   <label class="ghost wide" style="text-align:center;cursor:pointer">Restore from backup file<input type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)"></label>
-  <button class="danger wide" onclick="if(confirm('Delete ALL data on this device? This can’t be undone.')){const u=S.settings.sheetUrl,ak=S.settings.aiKey;S=defaults();S.settings.sheetUrl=u;S.settings.aiKey=ak;save();setTab('today')}">Delete all data</button></div>`};
+  <button class="danger wide" onclick="if(confirm('Delete ALL data on this device? This can’t be undone.')){const u=S.settings.sheetUrl,ak=S.settings.aiKey,ni=S.settings.nixId,nk=S.settings.nixKey;S=defaults();S.settings.sheetUrl=u;S.settings.aiKey=ak;S.settings.nixId=ni;S.settings.nixKey=nk;save();setTab('today')}">Delete all data</button></div>`};
 
 /* ================= start ================= */
 applyTheme();render();
